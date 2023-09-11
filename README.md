@@ -32,3 +32,34 @@ Git
 5. Автоматическое тестирование через Postman
 6. Unit-тесты
 7. Linter
+
+
+
+### Инструкция по установке
+1. установить golang. 1.19.8
+
+`apt isntall golang` 
+или 
+`pacman -S golang`
+
+2. установить Postgresql 15.
+для debian:
+`apt install postgresql` 
+для arch:
+`pacman -S postgresql`
+
+3. Запустить Posgresql
+`systemctl enable postgresql`
+`sytstemct start postgresql`
+
+4. Создание пользователя и базы данных в posgtesql
+
+`psql -U postgres`
+`CREATE USER cruder WITH PASSWORD 'jw8';`
+`CREATE DATABASE crudapp OWNER cruder;`
+
+5. Скомпилировать программу:
+`go build main.go`
+
+6. Запустить программу:
+`./main`
