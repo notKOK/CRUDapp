@@ -44,19 +44,18 @@ Git
 
 2. установить Postgresql 15.
 для debian:
-`apt install postgresql` 
+  `apt install postgresql` 
 для arch:
-`pacman -S postgresql`
+  `pacman -S postgresql`
 
-3. Запустить Posgresql
-`systemctl enable postgresql`
-`sytstemct start postgresql`
+3. Запустить Posgresql  `systemctl enable postgresql`
+  `sytstemct start postgresql`
 
 4. Создание пользователя и базы данных в posgtesql
 
-`psql -U postgres`
-`CREATE USER cruder WITH PASSWORD 'jw8';`
-`CREATE DATABASE crudapp OWNER cruder;`
+  `\npsql -U postgres`
+  `CREATE USER cruder WITH PASSWORD 'jw8';`
+  `CREATE DATABASE crudapp OWNER cruder;`
 
 5. Скомпилировать программу:
 `go build main.go`
