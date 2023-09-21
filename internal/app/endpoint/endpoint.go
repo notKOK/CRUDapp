@@ -3,20 +3,32 @@ package endpoint
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/cache/v9"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/net/context"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
+	"time"
 )
 
 type Endpoint struct {
-	db *gorm.DB
+	db      *gorm.DB
+	mycache *cache.Cache
+}
+
+type Product struct {
+	ID     string `json:"id" gorm:"primaryKey"`
+	Type   string `json:"type"`
+	Price  string `json:"price"`
+	MadeIn string `json:"madeIn"`
 }
 
 func New() *Endpoint {
 	endP := &Endpoint{}
 
-	dsn := "host=localhost user=cruder password=jw8 dbname=crudapp port=5432 sslmode=disable"
+	dsn := "host=127.0.0.1 user=cruder password=jw8 dbname=crudapp port=5432 sslmode=disable"
 	var err error
 	endP.db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -27,29 +39,54 @@ func New() *Endpoint {
 	if err != nil {
 		log.Fatal(err)
 	}
+	ring := redis.NewRing(&redis.RingOptions{
+		Addrs: map[string]string{
+			"localhost": ":6379",
+			"server2":   ":6380",
+		},
+	})
+
+	endP.mycache = cache.New(&cache.Options{
+		Redis:      ring,
+		LocalCache: cache.NewTinyLFU(1000, time.Minute),
+	})
 	return endP
 }
 
-type Product struct {
-	ID     string `json:"id" gorm:"primaryKey"`
-	Type   string `json:"type"`
-	Price  string `json:"price"`
-	MadeIn string `json:"madeIn"`
-}
-
 func (endP *Endpoint) GetEntityByID(c *gin.Context) {
-	var baseProduct Product
-	result := endP.db.Where("id = ?", c.Param("id")).First(&baseProduct)
+
+	ctx := context.TODO()
+
+	var wanted Product
+	sql := endP.db.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		return tx.Where("id = ?", c.Param("id")).First(&wanted)
+	})
+
+	if err := endP.mycache.Get(ctx, sql, &wanted); err == nil {
+		c.IndentedJSON(http.StatusOK, wanted)
+		return
+	}
+
+	result := endP.db.Where("id = ?", c.Param("id")).First(&wanted)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		c.IndentedJSON(http.StatusNotFound, "NOT FOUND ENTITY")
 		log.Print(result.Error)
 		return
 	} else if result.Error == nil {
-		c.IndentedJSON(http.StatusOK, baseProduct)
+		c.IndentedJSON(http.StatusOK, wanted)
+		if err := endP.mycache.Set(&cache.Item{
+			Ctx:   ctx,
+			Key:   sql,
+			Value: wanted,
+			TTL:   time.Minute,
+		}); err != nil {
+			log.Fatal(err)
+		}
 		return
 	}
 	c.IndentedJSON(http.StatusBadRequest, result.Error)
 	log.Print(result.Error)
+
 }
 
 func (endP *Endpoint) GetAllEntities(c *gin.Context) {
